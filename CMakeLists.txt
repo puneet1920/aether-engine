@@ -15,3 +15,4 @@ endif ()
 include_directories(include)
 
 add_executable(aether_engine src/main.cpp)
+add_executable(aether_benchmark src/benchmark.cpp)

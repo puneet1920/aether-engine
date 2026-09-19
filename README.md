@@ -69,9 +69,11 @@ aether-engine/
 │       ├── Order.hpp          # Cache-line aligned Order with intrusive pointers
 │       ├── PriceLevel.hpp     # FIFO doubly-linked list per price level
 │       ├── SlabAllocator.hpp  # Pre-allocated object pool (zero-alloc hot path)
-│       └── OrderBook.hpp      # Sorted bid/ask ladders + matching engine
+│       ├── OrderBook.hpp      # Sorted bid/ask ladders + matching engine
+│       └── Benchmark.hpp      # Synthetic flow generator + latency histogram
 └── src/
-    └── main.cpp               # Demo: order insertion + crossing match
+    ├── main.cpp               # Demo: order insertion + crossing match
+    └── benchmark.cpp          # Benchmark runner (throughput & latency percentiles)
 ```
 
 ## Slab Allocator
@@ -86,11 +88,62 @@ aether-engine/
 
 The `OrderBook` owns a `SlabAllocator<PriceLevel, 4096>` internally. All `PriceLevel` creation/destruction goes through the pool.
 
+## Benchmark & Synthetic Market Data
+
+AetherEngine includes a synthetic market data generator and cycle-accurate latency profiling suite (`include/aether/Benchmark.hpp`, `src/benchmark.cpp`).
+
+- **Synthetic Generator**: Configurable mid-price, spread ticks, quantity distribution, buy/sell balance, and cancellation flow.
+- **Latency Histogram**: Tracks tick-to-trade / order insertion and cancellation latencies (Min, Mean, p50, p90, p99, p99.9, Max).
+- **Zero Measurement Overhead**: Orders are pre-allocated so timing reflects pure matching engine latency.
+
+### Running the Benchmark
+
+```bash
+./aether_benchmark 500000
+```
+
+Sample output:
+```
+====================================================
+        AetherEngine Benchmark & Latency Suite      
+====================================================
+Simulating 250000 market events...
+
+--- Throughput & Execution Stats ---
+  Elapsed Time  : 0.118 s
+  Throughput    : 2,118,644 orders/sec
+  Trades Fired  : 51293
+  Total Volume  : 2821115
+  Resting Orders: 37498
+  Level Pool In-Use : 204 / 4096
+
+--- Add/Match Latency Profile ---
+  Total Samples : 212500
+  Min           : 50 ns
+  Mean          : 280 ns
+  p50 (Median)  : 210 ns
+  p90           : 480 ns
+  p99           : 1150 ns
+  p99.9         : 3200 ns
+  Max           : 18400 ns
+
+--- Cancel Latency Profile ---
+  Total Samples : 37500
+  Min           : 40 ns
+  Mean          : 190 ns
+  p50 (Median)  : 160 ns
+  p90           : 310 ns
+  p99           : 720 ns
+  p99.9         : 1800 ns
+  Max           : 8900 ns
+====================================================
+```
+
 ## Roadmap
 
 - [x] Core LOB with price-time priority matching
 - [x] Slab memory allocator for PriceLevel objects (zero-alloc hot path)
-- [ ] Synthetic market data generator and tick-to-trade latency benchmarks
+- [x] Synthetic market data generator and tick-to-trade latency benchmarks
 - [ ] GoogleTest unit tests covering partial fills, multi-level matching, and cancellations
 
 ## Inspired By
