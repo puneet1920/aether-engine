@@ -16,3 +16,9 @@ include_directories(include)
 
 add_executable(aether_engine src/main.cpp)
 add_executable(aether_benchmark src/benchmark.cpp)
+
+# Testing
+option(BUILD_TESTING "Build the testing tree." ON)
+if (BUILD_TESTING)
+    add_subdirectory(tests)
+endif ()

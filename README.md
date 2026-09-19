@@ -71,9 +71,13 @@ aether-engine/
 │       ├── SlabAllocator.hpp  # Pre-allocated object pool (zero-alloc hot path)
 │       ├── OrderBook.hpp      # Sorted bid/ask ladders + matching engine
 │       └── Benchmark.hpp      # Synthetic flow generator + latency histogram
-└── src/
-    ├── main.cpp               # Demo: order insertion + crossing match
-    └── benchmark.cpp          # Benchmark runner (throughput & latency percentiles)
+├── src/
+│   ├── main.cpp               # Demo: order insertion + crossing match
+│   └── benchmark.cpp          # Benchmark runner (throughput & latency percentiles)
+└── tests/
+    ├── CMakeLists.txt         # GoogleTest via FetchContent
+    ├── test_order_book.cpp     # Matching, partial fills, cancellations, FIFO tests
+    └── test_slab_allocator.cpp# Pool allocation, exhaustion, recycling tests
 ```
 
 ## Slab Allocator
@@ -139,12 +143,25 @@ Simulating 250000 market events...
 ====================================================
 ```
 
+## Unit Testing
+
+The test suite covers matching correctness, multi-level sweeps, partial fills, strict price-time priority (FIFO), cancellations, and slab allocator recycling:
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build .
+ctest --output-on-failure
+# or run directly:
+./tests/aether_tests
+```
+
 ## Roadmap
 
 - [x] Core LOB with price-time priority matching
 - [x] Slab memory allocator for PriceLevel objects (zero-alloc hot path)
 - [x] Synthetic market data generator and tick-to-trade latency benchmarks
-- [ ] GoogleTest unit tests covering partial fills, multi-level matching, and cancellations
+- [x] GoogleTest unit tests covering partial fills, multi-level matching, and cancellations
 
 ## Inspired By
 
@@ -153,3 +170,4 @@ Simulating 250000 market events...
 ## License
 
 MIT
+
