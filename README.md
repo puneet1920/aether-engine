@@ -65,18 +65,31 @@ aether-engine/
 ├── README.md
 ├── include/
 │   └── aether/
-│       ├── Types.hpp       # Core type aliases, enums, Trade struct
-│       ├── Order.hpp        # Cache-line aligned Order with intrusive pointers
-│       ├── PriceLevel.hpp   # FIFO doubly-linked list per price level
-│       └── OrderBook.hpp    # Sorted bid/ask ladders + matching engine
+│       ├── Types.hpp          # Core type aliases, enums, Trade struct
+│       ├── Order.hpp          # Cache-line aligned Order with intrusive pointers
+│       ├── PriceLevel.hpp     # FIFO doubly-linked list per price level
+│       ├── SlabAllocator.hpp  # Pre-allocated object pool (zero-alloc hot path)
+│       └── OrderBook.hpp      # Sorted bid/ask ladders + matching engine
 └── src/
-    └── main.cpp             # Demo: order insertion + crossing match
+    └── main.cpp               # Demo: order insertion + crossing match
 ```
+
+## Slab Allocator
+
+`SlabAllocator<T, Capacity>` is a compile-time-sized object pool that eliminates heap allocation on the matching hot path. Inspired by [Mercury's ObjectPool](https://github.com/eelixir/mercury).
+
+**Key properties:**
+- **O(1) allocate / deallocate** via index-based free stack (LIFO reuse)
+- **Zero `malloc`/`free`** during order insertion, matching, or cancellation
+- **Compile-time capacity** — `kMaxPriceLevels = 4096` by default
+- **Introspection** — `capacity()`, `available()`, `inUse()`, `owns(ptr)`
+
+The `OrderBook` owns a `SlabAllocator<PriceLevel, 4096>` internally. All `PriceLevel` creation/destruction goes through the pool.
 
 ## Roadmap
 
 - [x] Core LOB with price-time priority matching
-- [ ] Add an arena/slab memory allocator to manage Order allocations without malloc
+- [x] Slab memory allocator for PriceLevel objects (zero-alloc hot path)
 - [ ] Synthetic market data generator and tick-to-trade latency benchmarks
 - [ ] GoogleTest unit tests covering partial fills, multi-level matching, and cancellations
 

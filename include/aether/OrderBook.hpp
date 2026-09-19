@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PriceLevel.hpp"
+#include "SlabAllocator.hpp"
 
 #include <map>
 #include <unordered_map>
@@ -9,6 +10,10 @@
 
 namespace aether {
 
+/// Maximum number of price levels the slab can hold.
+/// Tune based on expected market depth.
+inline constexpr std::size_t kMaxPriceLevels = 4096;
+
 class OrderBook {
 public:
     using TradeCallback = void(*)(const Trade&);
@@ -16,8 +21,9 @@ public:
     explicit OrderBook(TradeCallback onTrade = nullptr) : m_onTrade(onTrade) {}
 
     ~OrderBook() {
-        for (auto& [_, level] : m_bids) delete level;
-        for (auto& [_, level] : m_asks) delete level;
+        // Return all levels to the slab
+        for (auto& [_, level] : m_bids) m_levelPool.deallocate(level);
+        for (auto& [_, level] : m_asks) m_levelPool.deallocate(level);
     }
 
     // Non-copyable, non-movable
@@ -51,7 +57,7 @@ public:
             if (levelIt != m_bids.end()) {
                 levelIt->second->remove(order);
                 if (levelIt->second->empty()) {
-                    delete levelIt->second;
+                    m_levelPool.deallocate(levelIt->second);
                     m_bids.erase(levelIt);
                 }
             }
@@ -60,7 +66,7 @@ public:
             if (levelIt != m_asks.end()) {
                 levelIt->second->remove(order);
                 if (levelIt->second->empty()) {
-                    delete levelIt->second;
+                    m_levelPool.deallocate(levelIt->second);
                     m_asks.erase(levelIt);
                 }
             }
@@ -82,10 +88,15 @@ public:
         return m_asks.empty() ? 0 : m_asks.begin()->first;
     }
 
+    /// Allocator introspection
+    [[nodiscard]] size_t levelPoolCapacity()  const noexcept { return m_levelPool.capacity(); }
+    [[nodiscard]] size_t levelPoolAvailable() const noexcept { return m_levelPool.available(); }
+    [[nodiscard]] size_t levelPoolInUse()     const noexcept { return m_levelPool.inUse(); }
+
 private:
     void matchBuy(Order* incoming) {
         while (!m_asks.empty() && !incoming->isFilled()) {
-            auto bestAskIt   = m_asks.begin();
+            auto bestAskIt    = m_asks.begin();
             Price bestAskPrice = bestAskIt->first;
 
             if (incoming->price < bestAskPrice) break;
@@ -94,7 +105,7 @@ private:
             matchLevel(incoming, level);
 
             if (level->empty()) {
-                delete level;
+                m_levelPool.deallocate(level);
                 m_asks.erase(bestAskIt);
             }
         }
@@ -102,7 +113,7 @@ private:
 
     void matchSell(Order* incoming) {
         while (!m_bids.empty() && !incoming->isFilled()) {
-            auto bestBidIt    = m_bids.begin();
+            auto bestBidIt     = m_bids.begin();
             Price bestBidPrice = bestBidIt->first;
 
             if (incoming->price > bestBidPrice) break;
@@ -111,7 +122,7 @@ private:
             matchLevel(incoming, level);
 
             if (level->empty()) {
-                delete level;
+                m_levelPool.deallocate(level);
                 m_bids.erase(bestBidIt);
             }
         }
@@ -148,7 +159,8 @@ private:
     void insertBid(Order* order) {
         auto it = m_bids.find(order->price);
         if (it == m_bids.end()) {
-            it = m_bids.emplace(order->price, new PriceLevel(order->price)).first;
+            PriceLevel* level = m_levelPool.allocate(order->price);
+            it = m_bids.emplace(order->price, level).first;
         }
         it->second->append(order);
     }
@@ -156,7 +168,8 @@ private:
     void insertAsk(Order* order) {
         auto it = m_asks.find(order->price);
         if (it == m_asks.end()) {
-            it = m_asks.emplace(order->price, new PriceLevel(order->price)).first;
+            PriceLevel* level = m_levelPool.allocate(order->price);
+            it = m_asks.emplace(order->price, level).first;
         }
         it->second->append(order);
     }
@@ -167,6 +180,9 @@ private:
     std::map<Price, PriceLevel*, std::less<Price>>    m_asks;
     // O(1) order lookup by ID
     std::unordered_map<OrderId, Order*>               m_orders;
+
+    // Pre-allocated pool for PriceLevel objects — zero heap alloc on hot path
+    SlabAllocator<PriceLevel, kMaxPriceLevels>        m_levelPool;
 
     TradeCallback m_onTrade{nullptr};
 };

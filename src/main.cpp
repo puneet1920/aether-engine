@@ -1,7 +1,6 @@
 #include "aether/OrderBook.hpp"
 
 #include <iostream>
-#include <chrono>
 
 void handleTrade(const aether::Trade& trade) {
     std::cout << "[TRADE] Match! Maker: " << trade.makerOrderId
@@ -29,6 +28,8 @@ int main() {
               << book.askLevelCount() << " ask levels\n";
     std::cout << "  Best Bid: $" << (book.bestBid() / 100.0)
               << " | Best Ask: $" << (book.bestAsk() / 100.0) << "\n";
+    std::cout << "  Level pool: " << book.levelPoolInUse() << " / "
+              << book.levelPoolCapacity() << " slots in use\n";
 
     // Aggressive market/limit cross order
     std::cout << "\nInserting crossing BUY order (price=$100.20, qty=60)...\n";
@@ -40,6 +41,9 @@ int main() {
     std::cout << "  Book state: " << book.orderCount() << " orders | "
               << book.bidLevelCount() << " bid levels | "
               << book.askLevelCount() << " ask levels\n";
+    std::cout << "  Level pool: " << book.levelPoolInUse() << " / "
+              << book.levelPoolCapacity() << " slots in use ("
+              << book.levelPoolAvailable() << " available)\n";
 
     return 0;
 }
